@@ -1,0 +1,122 @@
+#day0 HD 60um
+###
+install.packages("Seurat")
+localdir <- "/Users/ltyao/Desktop/Visvium fx/day0/HD young/HD/square_060um/"
+pbmcsca0 <- Load10X_Spatial(data.dir = localdir) ## bin.size = c(8, 16)
+
+pbmcsca0[['imagerow']] <- as.data.frame(pbmcsca0@images[["slice1"]]@boundaries[["centroids"]]@coords)$x
+
+pbmcsca0[['imagecol']] <- as.data.frame(pbmcsca0@images[["slice1"]]@boundaries[["centroids"]]@coords)$y
+
+left0 <- subset(pbmcsca0, imagecol > 7800 & imagecol < 25000)
+right0 <- subset(pbmcsca0, imagecol > 0 & imagecol < 7700, invert = )
+
+SpatialDimPlot(pbmcsca0, label = F, label.size = 5,crop =T , repel = T,pt.size.factor = 1.5,
+               cols = ,group.by = ,alpha = 0)
+
+left0$merge<-"left0"
+left0$day<-"day0"
+right0$merge<-"right0"
+right0$day<-"day0"
+save.image("/Users/ltyao/scRNA_seq_file/day0.RData")
+
+
+### day 5 data
+###seurat4.4.0
+remotes::install_version("Seurat", "4.4.0", repos = c("https://satijalab.r-universe.dev", getOption("repos")))
+### re-start R studio
+library("Seurat")
+load("/Users/ltyao/scRNA_seq_file/day0.RData")
+
+ima<-ReaSeuratima<-Read10X_Image("/Users/ltyao/Desktop/Visvium fx/day5/spatial")
+ima@coordinates[["tissue"]] <- as.integer(ima@coordinates[["tissue"]])
+ima@coordinates[["row"]] <- as.integer(ima@coordinates[["row"]])
+ima@coordinates[["col"]] <- as.integer(ima@coordinates[["col"]])
+ima@coordinates[["imagerow"]] <- as.integer(ima@coordinates[["imagerow"]])
+ima@coordinates[["imagecol"]] <- as.integer(ima@coordinates[["imagecol"]])
+
+spatial5<-Load10X_Spatial(
+  "/Users/ltyao/Desktop/Visvium fx/day5/spatial",
+  filename = "filtered_feature_bc_matrix.h5",
+  assay = "Spatial",
+  slice = "day5",
+  filter.matrix = TRUE,
+  to.upper = FALSE,
+  image = ima,
+)
+
+spatial5[['imagerow']] <- spatial5@images[["day5"]]@coordinates[["imagerow"]]
+spatial5[['imagecol']] <- spatial5@images[["day5"]]@coordinates[["imagecol"]]
+left5 <- subset(spatial5, imagecol > 0 & imagecol < 2500)
+right5 <- subset(spatial5, imagecol > 0 & imagecol < 2500, invert = TRUE)
+left5$merge<-"left5"
+left5$day<-"day5"
+right5$merge<-"right5"
+right5$day<-"day5"
+
+##day 15
+ima<-Read10X_Image("/Users/ltyao/Desktop/Visvium fx/day15/spatial")
+ima@coordinates[["tissue"]] <- as.integer(ima@coordinates[["tissue"]])
+ima@coordinates[["row"]] <- as.integer(ima@coordinates[["row"]])
+ima@coordinates[["col"]] <- as.integer(ima@coordinates[["col"]])
+ima@coordinates[["imagerow"]] <- as.integer(ima@coordinates[["imagerow"]])
+ima@coordinates[["imagecol"]] <- as.integer(ima@coordinates[["imagecol"]])
+
+#slice
+pbmcsca15<-Load10X_Spatial(
+"/Users/ltyao/Desktop/Visvium fx/day15/spatial/",
+filename = "filtered_feature_bc_matrix.h5",
+assay = "Spatial",
+slice = "day15",
+filter.matrix = TRUE,
+to.upper = FALSE,
+image = ima,
+)
+
+pbmcsca15[['imagerow']] <- pbmcsca15@images[["day15"]]@coordinates[["imagerow"]]
+pbmcsca15[['imagecol']] <- pbmcsca15@images[["day15"]]@coordinates[["imagecol"]]
+left15 <- subset(pbmcsca15, imagecol > 0 & imagecol < 2500)
+right15 <- subset(pbmcsca15, imagecol > 0 & imagecol < 2500, invert = TRUE)
+left15$merge<-"left15"
+left15$day<-"day15"
+right15$merge<-"right15"
+right15$day<-"day15"
+
+save.image("/Users/ltyao/scRNA_seq_file/day0_5_15.RData")
+###
+install.packages("Seurat")
+### restart Rstudio
+library("Seurat")
+load("/Users/ltyao/scRNA_seq_file/day0_5_15.RData")
+
+pbmcsca<-merge(left0,list(right0,left5,right5,left15,right15))
+pbmcsca$merge<-factor(pbmcsca$merge,levels=c("left0","right0","left5","right5","left15","right15"))
+# "nCount_Spatial"
+VlnPlot(pbmcsca,c("nFeature_Spatial"),pt.size = 0,split.by = )
+
+library(harmony)
+DefaultAssay(pbmcsca) <- "Spatial"
+pbmcsca <- NormalizeData(object = pbmcsca, normalization.method = "LogNormalize", scale.factor = 10000)
+pbmcsca <- FindVariableFeatures(pbmcsca, selection.method = "vst", nfeatures = 3000)
+
+##cell cycle
+pbmcsca <- JoinLayers(pbmcsca)
+cc.genes <- readLines ("/Users/ltyao/scRNA_seq_file/cell_cycle_vignette_files/regev_lab_cell_cycle_genes_mouse.txt")
+s.genes <- cc.genes[1:43]
+g2m.genes <- cc.genes[44:97]
+pbmcsca <- CellCycleScoring(object = pbmcsca, s.features = s.genes, g2m.features = g2m.genes, set.ident = F)
+
+pbmcsca <- ScaleData(pbmcsca, verbose = T,vars.to.regress =c("S.Score","G2M.Score"),features = )#  c("S.Score","G2M.Score").  c("S.Score","G2M.Score","percent.mt")
+pbmcsca <- RunPCA(pbmcsca, npcs = 100, verbose = T)
+pbmcsca <- RunHarmony(pbmcsca, group.by.vars = c("merge"),assay.use= )
+pbmcsca <- RunUMAP(pbmcsca, reduction = "harmony", dims = 1:80)
+pbmcsca <- FindNeighbors(pbmcsca, reduction = "harmony", dims = 1:80)
+pbmcsca <- FindClusters(pbmcsca, resolution = 1.2)
+#pbmcsca$orig.ident<-factor(pbmcsca$orig.ident, levels = c("matrigel","bmp2","bmp2palo"))
+#pbmcsca$merge<-pbmcsca$orig.ident
+#reduction = "pca"
+#pbmcsca$merge<-factor(pbmcsca$merge, levels = c("day0","day7","day60"))
+#Idents(mlin)<-"seurat_clusters"
+#Idents(pbmcsca)<-"celltype"
+pbmcsca$day<-factor(pbmcsca$day,levels = c("day0","day5","day15"))
+DimPlot(pbmcsca,label = T,label.size = 5, reduction=,repel = F,group.by = "seurat_clusters")
