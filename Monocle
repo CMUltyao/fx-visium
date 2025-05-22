@@ -1,0 +1,20 @@
+library(monocle)
+
+HSMM<-as.CellDataSet(pbmc, assay = "RNA", reduction = NULL)
+HSMM <- estimateSizeFactors(HSMM)
+HSMM <- estimateDispersions(HSMM)
+HSMM <- detectGenes(HSMM, min_expr = 0.1)
+print(head(fData(HSMM)))
+expressed_genes <- row.names(subset(fData(HSMM), num_cells_expressed >= 10))
+disp_table <- dispersionTable(HSMM)
+ordering_genes <- subset(disp_table, mean_expression >= 0.05 & dispersion_empirical >=1* dispersion_fit)$gene_id
+HSMM <- setOrderingFilter(HSMM, ordering_genes)
+#pdf("ordering_genes.pdf")
+#plot_ordering_genes(HSMM)
+#dev.off()
+## residualModelFormulaStr ="~merge" 
+HSMM <- reduceDimension(HSMM, max_components=2,residualModelFormulaStr ="~merge")
+HSMM <- orderCells(HSMM, reverse=FALSE,root_state =)
+# seurat_clusters
+plot_cell_trajectory(HSMM, color_by="celltype",
+                     show_branch_points = F)# + facet_wrap(~day, nrow = 1) 
