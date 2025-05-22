@@ -1,0 +1,52 @@
+expr <- as.data.frame(GetAssayData(pbmcsca)) #表达矩阵
+meta <- pbmc@meta.data[,c("orig.ident","seurat_clusters")] #类别
+m_df = msigdbr(species = "Mus musculus", category = "C2", subcategory = "CP:KEGG") 
+m_df2 = msigdbr(species = "Mus musculus", category = "H", subcategory = ) 
+m_df<-rbind(m_df,m_df2)
+#m_df<-m_df1
+msigdbr_list = split(x = m_df$gene_symbol, f = m_df$gs_name)
+expr=as.matrix(expr) 
+#rm(pbmc)
+#kegg <- gsva(expr, msigdbr_list, kcdf="Gaussian",method = "gsva",parallel.sz=4) #gsva
+#new way
+ssgsea_par <- ssgseaParam(expr, msigdbr_list)  # all other values are default values
+ssgsea_scores <- gsva(ssgsea_par)
+
+#by sample
+meta$celltype.cell<-paste0(meta$celltype.merge, "_", meta$orig.ident)
+
+
+meta <- meta %>%arrange(meta$celltype.cell)
+data <- ssgsea_scores[,rownames(meta)]
+group <- factor(meta[,"celltype.cell"],ordered = F)
+group
+data1 <-NULL
+i <- NULL
+
+library("gtools")
+abc <- meta$celltype.cell
+abc[duplicated(abc)]
+abc<-abc[!duplicated(abc)]
+
+
+for(i in 1:(length(unique(group)))){
+  ind <-which(group==unique(group)[i])
+  dat <- apply(data[,ind], 1, mean)
+  data1 <-cbind(data1,dat)
+}
+colnames(data1)<-abc
+
+result<- t(scale(t(data1)))
+write.table(result,"scale_ratio_disc.csv",sep=",")
+result[result>2]=2
+result[result<-2]=-2
+
+library(pheatmap)
+p <- pheatmap(result,
+
+                            cluster_rows = T,
+              cluster_cols = F,
+              show_rownames = T,
+              show_colnames = T,
+              color =colorRampPalette(c("blue", "white","red"))(100),
+              fontsize = 10)
